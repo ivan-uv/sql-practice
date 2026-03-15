@@ -14,15 +14,10 @@ and a built-in TUI to run queries and check your answers.
 
 ```bash
 # 1. Download the databases (~1–25 MB each)
-bash chinook/setup.sh
-bash northwind/setup.sh
-bash sakila/setup.sh
+bash setup.sh
 
-# 2. Launch the practice app
+# 2. Launch the app
 uv run practice.py
-
-# Or explore table schemas interactively
-uv run browse.py
 ```
 
 ## Databases
@@ -37,6 +32,7 @@ uv run browse.py
 
 | Key | Action |
 |-----|--------|
+| **F2** | Toggle the Schema Browser |
 | **F5** | Run your query and display results |
 | **F6** | Check your answer against the solution |
 | **F7** | Show a hint |
@@ -72,14 +68,15 @@ D SELECT * FROM chinook.Artist LIMIT 5;
 
 ## Schema Browser
 
-Run `uv run browse.py` to launch an interactive schema explorer. It shows:
+Press **F2** to toggle the built-in schema browser. It shows:
 
 - **Table tree** — all tables with their columns and types in the sidebar
 - **Column details** — types, primary keys, nullability, defaults
 - **Foreign keys** — which columns reference other tables
 - **Sample data** — first 10 rows of each table for quick reference
 
-Useful for getting familiar with a database before writing queries.
+The browser syncs to whichever database you have selected, so you can
+flip between the questions and the schema while working.
 
 Each folder also has a static `schema.md` with a table/column reference and
 relationship diagram.
@@ -93,3 +90,11 @@ relationship diagram.
 - Subqueries and CTEs (`WITH`)
 - Window functions (`RANK()`, `SUM() OVER`)
 - Set operations (finding gaps with `LEFT JOIN ... IS NULL`)
+
+## Database Sources
+
+| Database | Source | License |
+|----------|--------|---------|
+| Chinook | [lerocha/chinook-database](https://github.com/lerocha/chinook-database) | MIT |
+| Northwind | [jpwhite3/northwind-SQLite3](https://github.com/jpwhite3/northwind-SQLite3) | MIT |
+| Sakila | [bradleygrant/sakila-sqlite3](https://github.com/bradleygrant/sakila-sqlite3) | BSD |
