@@ -171,6 +171,7 @@ class SQLPractice(App):
         Binding("f6", "check_answer", "Check", show=True),
         Binding("f7", "show_hint", "Hint", show=True),
         Binding("f8", "show_solution", "Solution", show=True),
+        Binding("f9", "next_question", "Next", show=True),
         Binding("ctrl+q", "quit", "Quit", show=True),
     ]
 
@@ -208,6 +209,7 @@ class SQLPractice(App):
                     yield Button("✓  Check  [F6]",    id="btn-check", variant="primary")
                     yield Button("?  Hint  [F7]",     id="btn-hint",  variant="warning")
                     yield Button("📖 Solution  [F8]", id="btn-sol",   variant="default")
+                    yield Button("→  Next  [F9]",     id="btn-next",  variant="default")
                 yield Label("Results", id="results-label")
                 yield DataTable(id="results-table", zebra_stripes=True)
                 yield Static("Ready.", id="status")
@@ -327,6 +329,10 @@ class SQLPractice(App):
     def _btn_sol(self) -> None:
         self.action_show_solution()
 
+    @on(Button.Pressed, "#btn-next")
+    def _btn_next(self) -> None:
+        self.action_next_question()
+
     # ── Actions ───────────────────────────────────────────────────────────────
 
     def action_run_query(self) -> None:
@@ -395,6 +401,25 @@ class SQLPractice(App):
             self._cur_question["solution"]
         )
         self._set_status("Solution loaded in editor — study it, then try a variation!")
+
+    def action_next_question(self) -> None:
+        questions = DATASETS[self._ds_idx]["questions"]
+        if not questions:
+            return
+        if self._cur_question is None:
+            self._load_question(questions[0])
+            return
+        ids = [q["id"] for q in questions]
+        cur_idx = ids.index(self._cur_question["id"]) if self._cur_question["id"] in ids else -1
+        next_idx = (cur_idx + 1) % len(questions)
+        next_q = questions[next_idx]
+        self._load_question(next_q)
+        # Sync the sidebar highlight
+        lv = self.query_one("#question-list", ListView)
+        for i, item in enumerate(lv._nodes):
+            if getattr(item, "id", None) == f"q_{next_q['id']}":
+                lv.index = i
+                break
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
