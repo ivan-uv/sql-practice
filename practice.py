@@ -360,7 +360,7 @@ class SQLPractice(App):
             self._set_status(f"⚠  Solution error (report a bug): {s_err}")
             return
 
-        self._show_results(u_cols, u_rows)
+        self.query_one("#results-table", DataTable).clear(columns=True)
 
         if _results_match(u_rows, s_rows):
             ds = DATASETS[self._ds_idx]
