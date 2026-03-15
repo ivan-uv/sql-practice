@@ -2,13 +2,15 @@
 """SQL Practice — interactive terminal SQL learning app.
 
 Usage:
-    python practice.py
+    uv run practice.py
 
 Keybindings:
+    F2          Toggle between Practice and Schema Browser
     F5          Run query
     F6          Check answer against solution
     F7          Show hint
-    F8          Show / hide solution
+    F8          Load reference solution
+    F9          Next question
     Ctrl+Q      Quit
 """
 from __future__ import annotations
@@ -16,12 +18,12 @@ from __future__ import annotations
 import importlib.util
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.screen import Screen
 from textual.widgets import (
     Button,
     DataTable,
@@ -33,6 +35,7 @@ from textual.widgets import (
     Select,
     Static,
     TextArea,
+    Tree,
 )
 
 # ── Dataset registry ──────────────────────────────────────────────────────────
@@ -80,7 +83,7 @@ def _results_match(a: list, b: list) -> bool:
 
 def _run_sql(
     db_path: Path, sql: str
-) -> tuple[list[str], list[tuple], Optional[str]]:
+) -> tuple[list[str], list[tuple], str | None]:
     """Return (columns, rows, error_or_None)."""
     if not db_path.exists():
         return [], [], (
@@ -99,29 +102,90 @@ def _run_sql(
         return [], [], str(exc)
 
 
+# ── Schema introspection helpers ──────────────────────────────────────────────
+
+
+def _get_tables(db_path: Path) -> list[str]:
+    conn = sqlite3.connect(db_path)
+    tables = [
+        r[0]
+        for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall()
+    ]
+    conn.close()
+    return tables
+
+
+def _get_columns(db_path: Path, table: str) -> list[dict]:
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
+    conn.close()
+    return [
+        {
+            "name": r[1],
+            "type": r[2] or "TEXT",
+            "notnull": bool(r[3]),
+            "default": r[4],
+            "pk": bool(r[5]),
+        }
+        for r in rows
+    ]
+
+
+def _get_foreign_keys(db_path: Path, table: str) -> list[dict]:
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(f'PRAGMA foreign_key_list("{table}")').fetchall()
+    conn.close()
+    return [
+        {"from": r[3], "to_table": r[2], "to_column": r[4]}
+        for r in rows
+    ]
+
+
+def _get_sample_rows(
+    db_path: Path, table: str, limit: int = 10
+) -> tuple[list[str], list[tuple]]:
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute(f'SELECT * FROM "{table}" LIMIT {limit}')
+    cols = [d[0] for d in cur.description] if cur.description else []
+    rows = cur.fetchall()
+    conn.close()
+    return cols, rows
+
+
+def _get_row_count(db_path: Path, table: str) -> int:
+    conn = sqlite3.connect(db_path)
+    count = conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+    conn.close()
+    return count
+
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 
 APP_CSS = """
 Screen { background: $surface; }
 
-/* ── Sidebar ─────────────────────────── */
-#sidebar {
+/* ── Shared sidebar ─────────────────── */
+#sidebar, #browse-sidebar {
     width: 36;
     background: $panel;
     border-right: solid $primary-background;
     padding: 0 1;
 }
-#sidebar-heading {
+.sidebar-heading {
     text-style: bold;
     color: $accent;
     height: 2;
     padding: 1 0 0 0;
 }
-#db-select { margin-bottom: 1; }
+.db-select { margin-bottom: 1; }
+
+/* ── Practice screen ────────────────── */
 #question-list { height: 1fr; border: none; }
 .diff-header { color: $warning; text-style: bold; }
 
-/* ── Main panel ──────────────────────── */
 #main { padding: 1 2; height: 1fr; overflow-y: auto; }
 
 #q-header {
@@ -154,17 +218,47 @@ DataTable { height: 12; margin-bottom: 1; }
     border: round $primary-background;
     color: $text-muted;
 }
+
+/* ── Browse screen ──────────────────── */
+#table-tree { height: 1fr; }
+
+#browse-main { padding: 1 2; height: 1fr; overflow-y: auto; }
+
+#table-header {
+    text-style: bold;
+    height: 2;
+    color: $text;
+    margin-bottom: 0;
+}
+#table-info {
+    color: $text-muted;
+    height: 2;
+    margin-bottom: 1;
+}
+
+.section-label {
+    color: $accent;
+    text-style: bold;
+    height: 1;
+    margin-top: 1;
+}
+
+#columns-table { height: auto; max-height: 16; margin-bottom: 1; }
+#fk-section { height: auto; }
+#fk-table { height: auto; max-height: 8; margin-bottom: 1; }
+
+#sample-label { margin-top: 1; }
+#sample-table { height: auto; max-height: 14; margin-bottom: 1; }
 """
 
 DIFF_ICON = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}
 
 
-# ── App ───────────────────────────────────────────────────────────────────────
+# ── Practice Screen ──────────────────────────────────────────────────────────
 
-class SQLPractice(App):
-    """Interactive SQL practice in the terminal."""
 
-    CSS = APP_CSS
+class PracticeScreen(Screen):
+    """Main practice screen with questions and SQL editor."""
 
     BINDINGS = [
         Binding("f5", "run_query", "Run", show=True),
@@ -172,33 +266,28 @@ class SQLPractice(App):
         Binding("f7", "show_hint", "Hint", show=True),
         Binding("f8", "show_solution", "Solution", show=True),
         Binding("f9", "next_question", "Next", show=True),
-        Binding("ctrl+q", "quit", "Quit", show=True),
     ]
 
-    # ── State (initialised in on_mount) ───────────────────────────────────────
     _ds_idx: int
-    _cur_question: Optional[dict]
+    _cur_question: dict | None
     _completion: dict
-
-    # ── Layout ────────────────────────────────────────────────────────────────
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Horizontal(id="layout"):
             with Vertical(id="sidebar"):
-                yield Label("Database", id="sidebar-heading")
+                yield Label("Database", classes="sidebar-heading")
                 yield Select(
                     [(d["title"], i) for i, d in enumerate(DATASETS)],
                     value=0,
-                    id="db-select",
+                    id="practice-db-select",
+                    classes="db-select",
                 )
                 yield ListView(id="question-list")
             with Vertical(id="main"):
                 yield Static("Select a question from the sidebar.", id="q-header")
                 yield Static("", id="q-desc")
-                yield Label(
-                    "SQL Editor", id="editor-label"
-                )
+                yield Label("SQL Editor", id="editor-label")
                 yield TextArea(
                     "-- Write your SQL query here\n",
                     language="sql",
@@ -255,7 +344,6 @@ class SQLPractice(App):
             self._load_question(ds["questions"][0])
 
     def _update_checkmark(self, question: dict) -> None:
-        """Update just the icon for one question without rebuilding the list."""
         ds = DATASETS[self._ds_idx]
         key = f"{ds['name']}_{question['id']}"
         done = self._completion.get(key, False)
@@ -295,7 +383,7 @@ class SQLPractice(App):
 
     # ── Events ────────────────────────────────────────────────────────────────
 
-    @on(Select.Changed, "#db-select")
+    @on(Select.Changed, "#practice-db-select")
     def _on_db_select(self, event: Select.Changed) -> None:
         if event.value is not Select.BLANK:
             idx = int(event.value)
@@ -414,7 +502,6 @@ class SQLPractice(App):
         next_idx = (cur_idx + 1) % len(questions)
         next_q = questions[next_idx]
         self._load_question(next_q)
-        # Sync the sidebar highlight
         lv = self.query_one("#question-list", ListView)
         for i, item in enumerate(lv._nodes):
             if getattr(item, "id", None) == f"q_{next_q['id']}":
@@ -423,7 +510,7 @@ class SQLPractice(App):
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _get_sql(self) -> Optional[str]:
+    def _get_sql(self) -> str | None:
         raw = self.query_one("#sql-editor", TextArea).text.strip()
         if not raw or raw.startswith("--"):
             self._set_status("⚠  Write a SQL query first.")
@@ -442,7 +529,188 @@ class SQLPractice(App):
         self.query_one("#status", Static).update(msg)
 
 
+# ── Browse Screen ────────────────────────────────────────────────────────────
+
+
+class BrowseScreen(Screen):
+    """Interactive schema browser screen."""
+
+    _db_idx: int
+    _current_table: str | None
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        with Horizontal(id="browse-layout"):
+            with Vertical(id="browse-sidebar"):
+                yield Label("Database", classes="sidebar-heading")
+                yield Select(
+                    [(d["title"], i) for i, d in enumerate(DATASETS)],
+                    value=0,
+                    id="browse-db-select",
+                    classes="db-select",
+                )
+                yield Tree("Tables", id="table-tree")
+            with Vertical(id="browse-main"):
+                yield Static("Select a table from the sidebar.", id="table-header")
+                yield Static("", id="table-info")
+
+                yield Label("Columns", classes="section-label")
+                yield DataTable(id="columns-table", zebra_stripes=True)
+
+                with Vertical(id="fk-section"):
+                    yield Label("Foreign Keys", classes="section-label")
+                    yield DataTable(id="fk-table", zebra_stripes=True)
+
+                yield Label(
+                    "Sample Data (first 10 rows)",
+                    id="sample-label",
+                    classes="section-label",
+                )
+                yield DataTable(id="sample-table", zebra_stripes=True)
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self._db_idx = 0
+        self._current_table = None
+        self._build_tree()
+
+    def sync_database(self, idx: int) -> None:
+        """Sync the database selector to match the practice screen."""
+        if idx != self._db_idx:
+            self._db_idx = idx
+            self.query_one("#browse-db-select", Select).value = idx
+            self._build_tree()
+
+    # ── Tree / sidebar ────────────────────────────────────────────────────────
+
+    def _build_tree(self) -> None:
+        db_path = DATASETS[self._db_idx]["db_path"]
+        tree = self.query_one("#table-tree", Tree)
+        tree.clear()
+        tree.show_root = False
+
+        if not db_path.exists():
+            ds = DATASETS[self._db_idx]
+            tree.root.add_leaf(f"  Database not found — run setup.sh")
+            self.query_one("#table-header", Static).update(
+                f"⚠  Run:  bash {ds['name']}/setup.sh"
+            )
+            self.query_one("#table-info", Static).update("")
+            return
+
+        tables = _get_tables(db_path)
+        for tbl in tables:
+            cols = _get_columns(db_path, tbl)
+            node = tree.root.add(f"  {tbl}", data=tbl)
+            for col in cols:
+                pk = " PK" if col["pk"] else ""
+                nn = " NOT NULL" if col["notnull"] else ""
+                node.add_leaf(f"  {col['name']}  [{col['type']}{pk}{nn}]")
+        tree.root.expand_all()
+
+        if tables:
+            self._show_table(tables[0])
+
+    @on(Select.Changed, "#browse-db-select")
+    def _on_db_select(self, event: Select.Changed) -> None:
+        if event.value is not Select.BLANK:
+            idx = int(event.value)
+            if idx != self._db_idx:
+                self._db_idx = idx
+                self._build_tree()
+
+    @on(Tree.NodeHighlighted, "#table-tree")
+    def _on_tree_highlight(self, event: Tree.NodeHighlighted) -> None:
+        node = event.node
+        while node.parent and node.data is None:
+            node = node.parent
+        if node.data and node.data != self._current_table:
+            self._show_table(node.data)
+
+    # ── Table detail ──────────────────────────────────────────────────────────
+
+    def _show_table(self, table: str) -> None:
+        self._current_table = table
+        db = DATASETS[self._db_idx]
+        db_path = db["db_path"]
+
+        row_count = _get_row_count(db_path, table)
+        self.query_one("#table-header", Static).update(f"  {table}")
+        self.query_one("#table-info", Static).update(
+            f"  {row_count:,} rows  |  {db['name']}/{db_path.name}"
+        )
+
+        cols = _get_columns(db_path, table)
+        ct = self.query_one("#columns-table", DataTable)
+        ct.clear(columns=True)
+        ct.add_columns("Column", "Type", "PK", "Nullable", "Default")
+        for c in cols:
+            ct.add_row(
+                c["name"],
+                c["type"],
+                "yes" if c["pk"] else "",
+                "no" if c["notnull"] else "yes",
+                str(c["default"]) if c["default"] is not None else "",
+            )
+
+        fks = _get_foreign_keys(db_path, table)
+        ft = self.query_one("#fk-table", DataTable)
+        ft.clear(columns=True)
+        fk_section = self.query_one("#fk-section", Vertical)
+        if fks:
+            fk_section.display = True
+            ft.add_columns("Column", "References", "Foreign Column")
+            for fk in fks:
+                ft.add_row(fk["from"], fk["to_table"], fk["to_column"])
+        else:
+            fk_section.display = False
+
+        sample_cols, sample_rows = _get_sample_rows(db_path, table)
+        st = self.query_one("#sample-table", DataTable)
+        st.clear(columns=True)
+        if sample_cols:
+            st.add_columns(*sample_cols)
+            for row in sample_rows:
+                st.add_row(*[("NULL" if v is None else str(v)) for v in row])
+
+
+# ── App ───────────────────────────────────────────────────────────────────────
+
+
+class SQLPractice(App):
+    """Interactive SQL practice in the terminal."""
+
+    CSS = APP_CSS
+    TITLE = "SQL Practice"
+
+    BINDINGS = [
+        Binding("f2", "toggle_browse", "Browse", show=True),
+        Binding("ctrl+q", "quit", "Quit", show=True),
+    ]
+
+    SCREENS = {
+        "practice": PracticeScreen,
+        "browse": BrowseScreen,
+    }
+
+    def on_mount(self) -> None:
+        self.push_screen("practice")
+
+    def action_toggle_browse(self) -> None:
+        if isinstance(self.screen, BrowseScreen):
+            self.pop_screen()
+        else:
+            # Sync database selection when switching to browse
+            practice = self.screen
+            self.push_screen("browse")
+            if isinstance(practice, PracticeScreen):
+                browse = self.screen
+                if isinstance(browse, BrowseScreen):
+                    browse.sync_database(practice._ds_idx)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     load_datasets()
