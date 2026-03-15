@@ -1,0 +1,14 @@
+# Virtual environment
+.venv/
+
+# Downloaded databases (run setup.sh to get them)
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
