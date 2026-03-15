@@ -2,13 +2,14 @@
 """SQL Practice — interactive terminal SQL learning app.
 
 Usage:
-    python practice.py
+    uv run practice.py
 
 Keybindings:
     F5          Run query
     F6          Check answer against solution
     F7          Show hint
-    F8          Show / hide solution
+    F8          Load reference solution
+    F9          Next question
     Ctrl+Q      Quit
 """
 from __future__ import annotations
@@ -16,7 +17,6 @@ from __future__ import annotations
 import importlib.util
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from textual import on
 from textual.app import App, ComposeResult
@@ -80,7 +80,7 @@ def _results_match(a: list, b: list) -> bool:
 
 def _run_sql(
     db_path: Path, sql: str
-) -> tuple[list[str], list[tuple], Optional[str]]:
+) -> tuple[list[str], list[tuple], str | None]:
     """Return (columns, rows, error_or_None)."""
     if not db_path.exists():
         return [], [], (
@@ -177,7 +177,7 @@ class SQLPractice(App):
 
     # ── State (initialised in on_mount) ───────────────────────────────────────
     _ds_idx: int
-    _cur_question: Optional[dict]
+    _cur_question: dict | None
     _completion: dict
 
     # ── Layout ────────────────────────────────────────────────────────────────
@@ -423,7 +423,7 @@ class SQLPractice(App):
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _get_sql(self) -> Optional[str]:
+    def _get_sql(self) -> str | None:
         raw = self.query_one("#sql-editor", TextArea).text.strip()
         if not raw or raw.startswith("--"):
             self._set_status("⚠  Write a SQL query first.")

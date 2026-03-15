@@ -1,17 +1,24 @@
 # SQL Practice
 
-Three real-world SQLite databases with 15 practice questions each (Easy / Medium / Hard),
-plus an interactive terminal UI to run queries and check answers.
+Interactive terminal app for learning SQL through hands-on practice.
+Three real-world SQLite databases, 45 questions across Easy / Medium / Hard,
+and a built-in TUI to run queries and check your answers.
+
+## Prerequisites
+
+- **Python 3.10+**
+- [**uv**](https://docs.astral.sh/uv/) — installs dependencies automatically on first run
+- **curl** — used by the setup scripts to download databases
 
 ## Quick Start
 
 ```bash
-# 1. Download the databases (each ~1–25 MB, uses curl)
+# 1. Download the databases (~1–25 MB each)
 bash chinook/setup.sh
 bash northwind/setup.sh
 bash sakila/setup.sh
 
-# 2. Launch the practice app (uv installs dependencies automatically)
+# 2. Launch the practice app
 uv run practice.py
 ```
 
@@ -23,7 +30,7 @@ uv run practice.py
 | `northwind/` | Classic business ERP — customers, orders, products | 11 | 15 |
 | `sakila/` | DVD rental store — films, actors, rentals, payments | 15 | 15 |
 
-## App Keybindings
+## Keybindings
 
 | Key | Action |
 |-----|--------|
@@ -31,6 +38,7 @@ uv run practice.py
 | **F6** | Check your answer against the solution |
 | **F7** | Show a hint |
 | **F8** | Load the reference solution into the editor |
+| **F9** | Jump to the next question |
 | **Ctrl+Q** | Quit |
 
 ## Using the App
@@ -41,7 +49,7 @@ uv run practice.py
 4. **F5** to run and see results; **F6** to check correctness.
 5. Completed questions get a **✓** in the list.
 
-## Checking Without the App
+## Querying Without the App
 
 You can also query the databases directly with the SQLite CLI:
 
