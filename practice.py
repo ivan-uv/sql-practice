@@ -535,8 +535,8 @@ class PracticeScreen(Screen):
 class BrowseScreen(Screen):
     """Interactive schema browser screen."""
 
-    _db_idx: int
-    _current_table: str | None
+    _db_idx: int = 0
+    _current_table: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -570,8 +570,6 @@ class BrowseScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self._db_idx = 0
-        self._current_table = None
         self._build_tree()
 
     def sync_database(self, idx: int) -> None:
