@@ -20,6 +20,9 @@ bash sakila/setup.sh
 
 # 2. Launch the practice app
 uv run practice.py
+
+# Or explore table schemas interactively
+uv run browse.py
 ```
 
 ## Databases
@@ -67,10 +70,19 @@ D ATTACH 'chinook/chinook.sqlite' AS chinook;
 D SELECT * FROM chinook.Artist LIMIT 5;
 ```
 
-## Schema References
+## Schema Browser
 
-Each folder has a `schema.md` with a table/column reference and
-relationship diagram — useful when writing your own queries.
+Run `uv run browse.py` to launch an interactive schema explorer. It shows:
+
+- **Table tree** — all tables with their columns and types in the sidebar
+- **Column details** — types, primary keys, nullability, defaults
+- **Foreign keys** — which columns reference other tables
+- **Sample data** — first 10 rows of each table for quick reference
+
+Useful for getting familiar with a database before writing queries.
+
+Each folder also has a static `schema.md` with a table/column reference and
+relationship diagram.
 
 ## Topics Covered
 

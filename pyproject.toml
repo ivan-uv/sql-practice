@@ -9,4 +9,5 @@ dependencies = [
 
 [project.scripts]
 practice = "practice:main"
+browse = "browse:main"
 
