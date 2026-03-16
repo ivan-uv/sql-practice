@@ -3,6 +3,8 @@
 Free, offline SQL practice with real datasets and an interactive terminal app.
 Write queries, check your answers instantly, and browse table schemas — no account, no browser, no cloud required.
 
+![SQL Practice demo](demo.gif)
+
 ---
 
 ## Why This Exists
