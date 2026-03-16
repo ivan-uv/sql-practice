@@ -315,12 +315,12 @@ class PracticeScreen(Screen):
     def _switch_dataset(self, idx: int) -> None:
         self._ds_idx = idx
         self._cur_question = None
-        self._rebuild_sidebar()
+        self.call_after_refresh(self._rebuild_sidebar)
 
-    def _rebuild_sidebar(self, keep_question: bool = False) -> None:
+    async def _rebuild_sidebar(self, keep_question: bool = False) -> None:
         ds = DATASETS[self._ds_idx]
         lv = self.query_one("#question-list", ListView)
-        lv.clear()
+        await lv.clear()
         for diff in ("easy", "medium", "hard"):
             qs = [q for q in ds["questions"] if q["difficulty"] == diff]
             if not qs:
