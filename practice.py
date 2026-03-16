@@ -512,7 +512,7 @@ class PracticeScreen(Screen):
         next_q = questions[next_idx]
         self._load_question(next_q)
         lv = self.query_one("#question-list", ListView)
-        for i, item in enumerate(lv._nodes):
+        for i, item in enumerate(lv.children):
             if getattr(item, "id", None) == f"q_{next_q['id']}":
                 lv.index = i
                 break
@@ -521,10 +521,14 @@ class PracticeScreen(Screen):
 
     def _get_sql(self) -> str | None:
         raw = self.query_one("#sql-editor", TextArea).text.strip()
-        if not raw or raw.startswith("--"):
+        # Strip comment lines before checking whether there's any real SQL
+        non_comment = "\n".join(
+            line for line in raw.splitlines() if not line.strip().startswith("--")
+        ).strip()
+        if not non_comment:
             self._set_status("⚠  Write a SQL query first.")
             return None
-        return raw
+        return raw  # return original — SQLite handles inline comments fine
 
     def _show_results(self, cols: list[str], rows: list[tuple]) -> None:
         table = self.query_one("#results-table", DataTable)
