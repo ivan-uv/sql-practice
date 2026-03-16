@@ -394,7 +394,7 @@ class PracticeScreen(Screen):
 
     @on(Select.Changed, "#practice-db-select")
     def _on_db_select(self, event: Select.Changed) -> None:
-        if event.value is not Select.BLANK:
+        if event.value is not Select.NULL:
             idx = int(event.value)
             if idx != self._ds_idx:
                 self._switch_dataset(idx)
@@ -620,7 +620,7 @@ class BrowseScreen(Screen):
 
     @on(Select.Changed, "#browse-db-select")
     def _on_db_select(self, event: Select.Changed) -> None:
-        if event.value is not Select.BLANK:
+        if event.value is not Select.NULL:
             idx = int(event.value)
             if idx != self._db_idx:
                 self._db_idx = idx
