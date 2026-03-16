@@ -171,4 +171,4 @@ D SELECT * FROM chinook.Artist LIMIT 5;
 
 ---
 
-Built with [Textual](https://textual.textualize.io/) · MIT License
+Built by Ivan Urena-Valdes - ivanurenavaldes@gmail.com — [linkedin.com/in/ivanurenavaldes](linkedin.com/in/ivanurenavaldes/) with [Textual](https://textual.textualize.io/) · MIT License
