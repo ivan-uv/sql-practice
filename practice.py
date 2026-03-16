@@ -75,6 +75,15 @@ def _normalize(v: object) -> str:
     return str(v)
 
 
+def _safe_cell(v: object) -> str:
+    """Convert a DB value to a display string safe for Rich markup rendering."""
+    if v is None:
+        return "NULL"
+    if isinstance(v, (bytes, bytearray)):
+        return f"<BLOB {len(v):,} B>"
+    return str(v).replace("[", "\\[")
+
+
 def _results_match(a: list, b: list) -> bool:
     """Order-independent comparison of two result sets."""
     norm = lambda rows: sorted(tuple(_normalize(c) for c in row) for row in rows)
@@ -523,7 +532,7 @@ class PracticeScreen(Screen):
         if cols:
             table.add_columns(*cols)
             for row in rows[:200]:
-                table.add_row(*[("NULL" if v is None else str(v)) for v in row])
+                table.add_row(*[_safe_cell(v) for v in row])
 
     def _set_status(self, msg: str) -> None:
         self.query_one("#status", Static).update(msg)
@@ -669,7 +678,7 @@ class BrowseScreen(Screen):
         if sample_cols:
             st.add_columns(*sample_cols)
             for row in sample_rows:
-                st.add_row(*[("NULL" if v is None else str(v)) for v in row])
+                st.add_row(*[_safe_cell(v) for v in row])
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
